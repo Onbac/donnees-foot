@@ -1,0 +1,31 @@
+name: Mise à jour des données foot
+on:
+  schedule:
+    - cron: "15 4 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  maj:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Télécharger football-data.co.uk
+        run: |
+          mkdir -p data
+          an=$(date +%Y); mois=$(date +%-m); [ "$mois" -lt 7 ] && an=$((an-1))
+          for s in $((an-2)) $((an-1)) $an; do
+            code=$(printf "%02d%02d" $((s%100)) $(((s+1)%100)))
+            for div in F1 E0 SP1 I1 D1; do
+              curl -fsSL -A "Mozilla/5.0" "https://www.football-data.co.uk/mmz4281/$code/$div.csv" -o "data/${div}_${code}.csv" || echo "absent $div $code"
+            done
+          done
+          curl -fsSL -A "Mozilla/5.0" "https://www.football-data.co.uk/fixtures.csv" -o data/fixtures.csv
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > data/derniere_maj.txt
+      - name: Enregistrer
+        run: |
+          git config user.name "maj-auto"
+          git config user.email "actions@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || git commit -m "Données du $(date +%F)"
+          git push
